@@ -20,13 +20,48 @@
 <label for="evidence">Evidencia / nombre del archivo (opcional)</label><input id="evidence" placeholder="Ej.: error_guardar.png o enlace compartido">
 <div class="actions"><button class="primary" type="submit">Generar informe</button><button class="secondary" type="reset">Limpiar formulario</button></div><div class="status" id="status" aria-live="polite"></div>
 </form></section>
-<section class="panel"><h3>Vista previa del informe</h3><div id="preview" class="preview empty">Tu informe aparecerá aquí después de completar los campos obligatorios y pulsar “Generar informe”.</div><div class="actions"><button class="primary" id="copyBtn" type="button">Copiar informe</button><button class="secondary" id="downloadBtn" type="button">Descargar .txt</button></div><p class="hint">Consejo: adjunta una captura o grabación real si la plataforma de pruebas lo solicita. La herramienta no adjunta archivos automáticamente.</p><div class="notice"><strong>Privacidad:</strong> esta versión funciona localmente en tu navegador. No envía los informes a un servidor. Evita incluir contraseñas o datos personales.</div></section></div>
+<section class="panel"><h3>Vista previa del informe</h3><div id="preview" class="preview empty">Tu informe aparecerá aquí después de completar los campos obligatorios y pulsar “Generar informe”.</div><div class="actions"><button class="primary" id="copyBtn" type="button">Copiar informe</button><button class="secondary" id="downloadBtn" type="button">Descargar .txt</button><button class="secondary" id="translateBtn" type="button">Traducir al inglés</button><button class="secondary" id="spanishBtn" type="button" hidden>Volver al español</button></div><p class="hint">Consejo: adjunta una captura o grabación real si la plataforma de pruebas lo solicita. La herramienta no adjunta archivos automáticamente. La traducción usa un servicio externo gratuito; el texto del informe se enviará a ese servicio para traducirlo.</p><div class="notice"><strong>Privacidad:</strong> esta versión funciona localmente en tu navegador. No envía los informes a un servidor. Evita incluir contraseñas o datos personales.</div></section></div>
 <p class="footer">Testeos Fácil · Herramienta independiente. No está afiliada a plataformas de testing.</p></main>
 <script>
-const form=document.getElementById('bugForm'),preview=document.getElementById('preview'),statusEl=document.getElementById('status');let report='';
+const form=document.getElementById('bugForm'),preview=document.getElementById('preview'),statusEl=document.getElementById('status');
+let report='', spanishReport='', englishReport='', currentLanguage='es';
 function val(id){return document.getElementById(id).value.trim()||'No especificado'}
-form.addEventListener('submit',e=>{e.preventDefault();report=`INFORME DE ERROR — TESTEOS FÁCIL\n\nTítulo: ${val('title')}\nTipo: ${val('type')}\nSeveridad: ${val('severity')}\nEntorno: ${val('environment')}\n\nPrecondiciones:\n${val('preconditions')}\n\nPasos para reproducir:\n${val('steps')}\n\nResultado esperado:\n${val('expected')}\n\nResultado actual:\n${val('actual')}\n\nEvidencia: ${val('evidence')}\n` ;preview.textContent=report;preview.classList.remove('empty');statusEl.textContent='Informe generado. Puedes copiarlo o descargarlo.';});
-form.addEventListener('reset',()=>{setTimeout(()=>{report='';preview.textContent='Tu informe aparecerá aquí después de completar los campos obligatorios y pulsar “Generar informe”.';preview.classList.add('empty');statusEl.textContent='';},0)});
+function buildReport(language='es', fields=null){
+ const f=fields||{title:val('title'),type:val('type'),severity:val('severity'),environment:val('environment'),preconditions:val('preconditions'),steps:val('steps'),expected:val('expected'),actual:val('actual'),evidence:val('evidence')};
+ if(language==='en') return `BUG REPORT — TESTEOS FÁCIL\n\nTitle: ${f.title}\nType: ${f.type}\nSeverity: ${f.severity}\nEnvironment: ${f.environment}\n\nPreconditions:\n${f.preconditions}\n\nSteps to reproduce:\n${f.steps}\n\nExpected result:\n${f.expected}\n\nActual result:\n${f.actual}\n\nEvidence: ${f.evidence}\n`;
+ return `INFORME DE ERROR — TESTEOS FÁCIL\n\nTítulo: ${f.title}\nTipo: ${f.type}\nSeveridad: ${f.severity}\nEntorno: ${f.environment}\n\nPrecondiciones:\n${f.preconditions}\n\nPasos para reproducir:\n${f.steps}\n\nResultado esperado:\n${f.expected}\n\nResultado actual:\n${f.actual}\n\nEvidencia: ${f.evidence}\n`;
+}
+function showReport(text,lang){report=text;currentLanguage=lang;preview.textContent=text;preview.classList.remove('empty');document.getElementById('spanishBtn').hidden=lang!=='en';}
+form.addEventListener('submit',e=>{e.preventDefault();spanishReport=buildReport('es');englishReport='';showReport(spanishReport,'es');statusEl.textContent='Informe generado. Puedes copiarlo o descargarlo.';});
+form.addEventListener('reset',()=>{setTimeout(()=>{report='';spanishReport='';englishReport='';currentLanguage='es';preview.textContent='Tu informe aparecerá aquí después de completar los campos obligatorios y pulsar “Generar informe”.';preview.classList.add('empty');statusEl.textContent='';document.getElementById('spanishBtn').hidden=true;},0)});
 document.getElementById('copyBtn').addEventListener('click',async()=>{if(!report){statusEl.textContent='Primero genera un informe.';return}try{await navigator.clipboard.writeText(report);statusEl.textContent='Informe copiado al portapapeles.'}catch(e){statusEl.textContent='No se pudo copiar automáticamente. Selecciona el texto de la vista previa.'}});
-document.getElementById('downloadBtn').addEventListener('click',()=>{if(!report){statusEl.textContent='Primero genera un informe.';return}const blob=new Blob([report],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='informe-error-testeos-facil.txt';a.click();URL.revokeObjectURL(url);statusEl.textContent='Descarga iniciada.'});
+document.getElementById('downloadBtn').addEventListener('click',()=>{if(!report){statusEl.textContent='Primero genera un informe.';return}const blob=new Blob([report],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=currentLanguage==='en'?'bug-report-testeos-facil.txt':'informe-error-testeos-facil.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);statusEl.textContent='Descarga iniciada.'});
+async function translateText(text){
+ // MyMemory is a third-party translation service with usage limits. Split long fields to stay within request limits.
+ const chunks=[]; for(let i=0;i<text.length;i+=450) chunks.push(text.slice(i,i+450));
+ const translated=[];
+ for(const chunk of chunks){
+   const url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(chunk)+'&langpair=es|en';
+   const response=await fetch(url); if(!response.ok) throw new Error('El servicio de traducción no está disponible.');
+   const data=await response.json();
+   if(!data.responseData || typeof data.responseData.translatedText!=='string') throw new Error('No se recibió una traducción válida.');
+   translated.push(data.responseData.translatedText);
+ }
+ return translated.join('');
+}
+document.getElementById('translateBtn').addEventListener('click',async()=>{
+ if(!spanishReport){statusEl.textContent='Primero genera el informe en español.';return}
+ const btn=document.getElementById('translateBtn');btn.disabled=true;btn.textContent='Traduciendo…';statusEl.textContent='Traduciendo el informe. Necesitas conexión a internet…';
+ try{
+   const fields={title:val('title'),type:val('type'),severity:val('severity'),environment:val('environment'),preconditions:val('preconditions'),steps:val('steps'),expected:val('expected'),actual:val('actual'),evidence:val('evidence')};
+   const keys=Object.keys(fields);const translated=await Promise.all(keys.map(async k=>[k,await translateText(fields[k])]));
+   const f=Object.fromEntries(translated);
+   const typeMap={'Funcional':'Functional','Visual':'Visual','Contenido':'Content','Rendimiento':'Performance','Compatibilidad':'Compatibility','Otro':'Other'};
+   const severityMap={'Menor':'Minor','Media':'Medium','Alta':'High','Crítica':'Critical'};
+   f.type=typeMap[fields.type]||f.type;f.severity=severityMap[fields.severity]||f.severity;
+   englishReport=buildReport('en',f);showReport(englishReport,'en');statusEl.textContent='Traducción lista. Revísala antes de enviarla; la traducción automática puede cometer errores.';
+ }catch(err){statusEl.textContent='No se pudo traducir. Comprueba tu conexión e inténtalo de nuevo. '+(err.message||'')}
+ finally{btn.disabled=false;btn.textContent='Traducir al inglés'}
+});
+document.getElementById('spanishBtn').addEventListener('click',()=>{if(spanishReport) {showReport(spanishReport,'es');statusEl.textContent='Se muestra de nuevo el informe en español.'}});
 </script></body></html>
